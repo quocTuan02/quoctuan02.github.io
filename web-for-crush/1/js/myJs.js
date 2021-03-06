@@ -1,3 +1,5 @@
+const btnNo = $("#no");
+const btnYes = $('#yes');
 $(document).ready(function () {
     // process bar
     setTimeout(function () {
@@ -8,7 +10,7 @@ $(document).ready(function () {
             'overflow': 'visible'
         });
     }, 600);
-})
+});
 
 function firstQuestion() {
 
@@ -28,87 +30,80 @@ function firstQuestion() {
 
 // switch button position
 function switchButton() {
-    var audio = new Audio('sound/duck.mp3');
+    let audio = new Audio('sound/duck.mp3');
     audio.play();
-    var leftNo = $('#no').css("left");
-    var topNO = $('#no').css("top");
-    var leftY = $('#yes').css("left");
-    var topY = $('#yes').css("top");
-    $('#no').css("left", leftY);
-    $('#no').css("top", topY);
-    $('#yes').css("left", leftNo);
-    $('#yes').css("top", topNO);
+    let leftNo = btnNo.css("left");
+    let topNO = btnNo.css("top");
+    let leftY = btnYes.css("left");
+    let topY = btnYes.css("top");
+    btnNo.css("left", leftY);
+    btnNo.css("top", topY);
+    btnYes.css("left", leftNo);
+    btnYes.css("top", topNO);
     console.log('kk');
 }
 
 // move random button póition
 function moveButton() {
-    var audio = new Audio('sound/Swish1.mp3');
+    let audio = new Audio('sound/Swish1.mp3');
     audio.play();
-    var x = Math.random() * 500;
-    var y = Math.random() * 500;
-    var left = x + 'px';
-    var top = y + 'px';
-    $('#no').css("left", left);
-    $('#no').css("top", top);
+    let x = Math.random() * screen.width * 0.8;
+    let y = Math.random() * screen.height * 0.8;
+    let left = x + 'px';
+    let top = y + 'px';
+    btnNo.css("left", left);
+    btnNo.css("top", top);
 }
 
 
-var n = 0;
-$('#no').mousemove(function () {
+let n = 0;
+btnNo.mousemove(function () {
     if (n < 1)
         switchButton();
     if (n > 1)
         moveButton();
     n++;
 });
-$('#no').click(function () {
+btnNo.click(function () {
     switchButton();
     moveButton();
 });
 
 // generate text in input
 function textGenerate() {
-    var n = "";
-    var text = " Tại vì cậu đẹp trai vl :<<<<<<< ";
-    var a = Array.from(text);
-    var textVal = $('#txtReason').val() ? $('#txtReason').val() : "";
-    var count = textVal.length;
+    const txtReason =  $('#txtReason');
+    let n = "";
+    let text = " Tại vì cậu đẹp trai vl :<<<<<<< ";
+    let a = Array.from(text);
+    let textVal = txtReason.val() ? txtReason.val() : "";
+    let count = textVal.length;
     if (count > 0) {
         for (let i = 1; i <= count; i++) {
             n = n + a[i];
-            if (i == text.length + 1) {
-                $('#txtReason').val("");
+            if (i === text.length + 1) {
+                txtReason.val("");
                 n = "";
                 break;
             }
         }
     }
-    $('#txtReason').val(n);
+    txtReason.val(n);
     setTimeout("textGenerate()", 1);
 }
 
 // show popup
-$('#yes').click(function () {
-    var audio = new Audio('sound/tick.mp3');
+btnYes.click(function () {
+    let audio = new Audio('sound/tick.mp3');
     audio.play();
     Swal.fire({
         title: 'Nói cho tớ lí do cậu thích tớ đi :vvvv',
         html: true,
-        width: 900,
-        padding: '3em',
-        html: "<input type='text' class='form-control' id='txtReason' onmousemove=textGenerate()  placeholder='Tớ đẹp trai lắm phải không <3'>",
+        width: screen.width > 900 ? 900 : screen.width,
+        padding: '3em 1em',
+        html: '<input type="text" class="form-control" id="txtReason" onmousemove=textGenerate()  placeholder="Tớ đẹp trai lắm phải không <3">',
         background: '#fff url("img/iput-bg.jpg")',
-        backdrop: `
-              rgba(0,0,123,0.4)
-              url("img/giphy2.gif")
-              left top
-              no-repeat
-            `,
         showCancelButton: true,
         cancelButtonText: "Thôi ngại lém :<<",
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
         confirmButtonColor: '#fe8a71',
         cancelButtonColor: '#f6cd61',
         confirmButtonText: 'Gửi cho tớ <3'
