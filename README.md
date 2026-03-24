@@ -7,6 +7,7 @@ Welcome! This is a collection of useful tools and projects.
 ### AWS Tools
 
 - **[CloudWatch Log Viewer](/aws/cloud-watch_log-viewer.html)** - Interactive viewer for AWS CloudWatch logs with search and filtering capabilities
+- **[DynamoDB Table Cloner](/aws/DynamoDB/)** - Clone DynamoDB tables with prefix, including schema, indexes, and data. Supports parallel scanning and retry logic.
 
 ---
 
