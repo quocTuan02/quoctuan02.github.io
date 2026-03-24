@@ -143,6 +143,62 @@
         .search-box:focus { border-color: var(--accent); }
         .search-box::placeholder { color: var(--text-muted); }
 
+        /* Filter tags */
+        .filter-container {
+          display: flex;
+          flex: 1;
+          min-width: 200px;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          padding: 6px 10px;
+          border-radius: 6px;
+          transition: border-color 0.2s;
+        }
+
+        .filter-container:focus-within { border-color: var(--accent); }
+
+        .filter-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: var(--accent);
+          color: #000;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .filter-tag.exclude {
+          background: var(--accent2);
+        }
+
+        .filter-tag-remove {
+          cursor: pointer;
+          font-weight: 700;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+        }
+
+        .filter-tag-remove:hover { opacity: 1; }
+
+        .filter-input {
+          flex: 1;
+          min-width: 80px;
+          background: transparent;
+          border: none;
+          color: var(--text);
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          outline: none;
+        }
+
+        .filter-input::placeholder { color: var(--text-muted); }
+
         .select-filter {
           background: var(--surface2);
           border: 1px solid var(--border);
@@ -437,7 +493,9 @@
     </label>
     <input type="file" id="fileInput" accept=".json">
 
-    <input type="text" class="search-box" id="searchInput" placeholder="🔍 Search logs... (supports regex)">
+    <div class="filter-container" id="filterContainer">
+        <input type="text" class="filter-input" id="filterInput" placeholder="🔍 Add keyword or -exclude... (Enter to add)">
+    </div>
 
     <input type="datetime-local" class="date-input" id="dateFrom" title="From">
     <input type="datetime-local" class="date-input" id="dateTo" title="To">
@@ -483,6 +541,7 @@
     let sortCol = 'timestamp';
     let sortDir = 'desc';
     let activeLevels = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG', 'UNKNOWN']);
+    let filters = []; // {type: 'include'|'exclude', value: 'keyword'}
 
     // File input
     document.getElementById('fileInput').addEventListener('change', function(e) {
@@ -502,7 +561,28 @@
     });
 
     // Search & filter
-    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('filterInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        let input = this.value.trim();
+        if (!input) return;
+
+        let type = 'include';
+        let keyword = input;
+
+        // Check for exclude prefix (-)
+        if (input.startsWith('-')) {
+          type = 'exclude';
+          keyword = input.substring(1).trim();
+        }
+
+        if (keyword && !filters.some(f => f.type === type && f.value === keyword)) {
+          filters.push({type, value: keyword});
+          this.value = '';
+          renderFilterTags();
+          applyFilters();
+        }
+      }
+    });
     document.getElementById('dateFrom').addEventListener('change', applyFilters);
     document.getElementById('dateTo').addEventListener('change', applyFilters);
 
@@ -569,24 +649,64 @@
       applyFilters();
     }
 
+    function renderFilterTags() {
+      const container = document.getElementById('filterContainer');
+      const input = document.getElementById('filterInput');
+
+      container.innerHTML = '';
+      filters.forEach((filter, idx) => {
+        const tag = document.createElement('div');
+        tag.className = `filter-tag ${filter.type === 'exclude' ? 'exclude' : ''}`;
+        const prefix = filter.type === 'exclude' ? '−' : '';
+        tag.innerHTML = `${prefix}${escapeHtml(filter.value)}<span class="filter-tag-remove" onclick="removeFilterByIndex(${idx})">×</span>`;
+        container.appendChild(tag);
+      });
+
+      container.appendChild(input);
+    }
+
+    function removeFilterByIndex(idx) {
+      filters.splice(idx, 1);
+      renderFilterTags();
+      applyFilters();
+    }
+
     function applyFilters() {
-      const search = document.getElementById('searchInput').value.trim();
       const dateFrom = document.getElementById('dateFrom').value ? new Date(document.getElementById('dateFrom').value) : null;
       const dateTo = document.getElementById('dateTo').value ? new Date(document.getElementById('dateTo').value) : null;
-
-      let regex = null;
-      try { if (search) regex = new RegExp(search, 'gi'); } catch(e) {}
 
       filteredLogs = allLogs.filter(log => {
         if (!activeLevels.has(log.level)) return false;
         if (dateFrom && log.timestamp < dateFrom) return false;
         if (dateTo && log.timestamp > dateTo) return false;
-        if (search) {
-          if (regex) {
-            regex.lastIndex = 0;
-            return regex.test(log.message);
+
+        // Process filters
+        if (filters.length > 0) {
+          // All include filters must match (AND logic)
+          const includeFilters = filters.filter(f => f.type === 'include');
+          if (includeFilters.length > 0) {
+            const allIncludeMatch = includeFilters.every(f => {
+              try {
+                const regex = new RegExp(f.value, 'i');
+                return regex.test(log.message);
+              } catch(e) {
+                return log.message.toLowerCase().includes(f.value.toLowerCase());
+              }
+            });
+            if (!allIncludeMatch) return false;
           }
-          return log.message.toLowerCase().includes(search.toLowerCase());
+
+          // None of the exclude filters should match
+          const excludeFilters = filters.filter(f => f.type === 'exclude');
+          const anyExcludeMatch = excludeFilters.some(f => {
+            try {
+              const regex = new RegExp(f.value, 'i');
+              return regex.test(log.message);
+            } catch(e) {
+              return log.message.toLowerCase().includes(f.value.toLowerCase());
+            }
+          });
+          if (anyExcludeMatch) return false;
         }
         return true;
       });
@@ -605,11 +725,13 @@
     }
 
     function clearFilters() {
-      document.getElementById('searchInput').value = '';
+      filters = [];
+      document.getElementById('filterInput').value = '';
       document.getElementById('dateFrom').value = '';
       document.getElementById('dateTo').value = '';
       activeLevels = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG', 'UNKNOWN']);
       document.querySelectorAll('.level-btn').forEach(btn => btn.classList.add('active'));
+      renderFilterTags();
       applyFilters();
     }
 
@@ -619,11 +741,16 @@
       applyFilters();
     }
 
-    function highlight(text, search) {
-      if (!search) return escapeHtml(text);
+    function highlightMultiple(text, filterList) {
+      if (!filterList || filterList.length === 0) return escapeHtml(text);
+      let result = escapeHtml(text);
       try {
-        const regex = new RegExp(`(${search})`, 'gi');
-        return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+        // Highlight include filters only (not exclude)
+        filterList.filter(f => f.type === 'include').forEach(f => {
+          const regex = new RegExp(`(${f.value})`, 'gi');
+          result = result.replace(regex, '<mark>$1</mark>');
+        });
+        return result;
       } catch(e) {
         return escapeHtml(text);
       }
@@ -634,7 +761,6 @@
     }
 
     function renderTable() {
-      const search = document.getElementById('searchInput').value.trim();
       const start = (currentPage - 1) * pageSize;
       const end = start + pageSize;
       const pageData = filteredLogs.slice(start, end);
@@ -671,7 +797,7 @@
             <tr class="row-${log.level}" onclick="toggleExpand(this)">
               <td class="td-time">${log.timestampStr}</td>
               <td class="td-level"><span class="level-badge level-${log.level}">${log.level}</span></td>
-              <td class="td-message">${highlight(log.message, search)}</td>
+              <td class="td-message">${highlightMultiple(log.message, filters)}</td>
             </tr>
           `;
         });
