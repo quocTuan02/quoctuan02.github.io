@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECS Log Viewer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap');
+
+        :root {
+          --bg: #0a0c10;
+          --surface: #111318;
+          --surface2: #1a1d24;
+          --border: #2a2d35;
+          --accent: #00d4aa;
+          --accent2: #ff6b6b;
+          --accent3: #ffd93d;
+          --text: #e2e8f0;
+          --text-muted: #64748b;
+          --info: #60a5fa;
+          --warn: #fbbf24;
+          --error: #f87171;
+          --debug: #a78bfa;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+          background: var(--bg);
+          color: var(--text);
+          font-family: 'JetBrains Mono', monospace;
+          min-height: 100vh;
+          overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+          padding: 16px 24px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .logo {
+          font-family: 'Syne', sans-serif;
+          font-size: 20px;
+          font-weight: 800;
+          color: var(--accent);
+          letter-spacing: -0.5px;
+        }
+
+        .logo span { color: var(--text-muted); font-weight: 400; }
+
+        .badge {
+          background: rgba(0, 212, 170, 0.1);
+          border: 1px solid rgba(0, 212, 170, 0.3);
+          color: var(--accent);
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+
+        .header-stats {
+          display: flex;
+          gap: 20px;
+          align-items: center;
+        }
+
+        .stat {
+          text-align: right;
+        }
+
+        .stat-value {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--accent);
+        }
+
+        .stat-label {
+          font-size: 10px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        /* Controls */
+        .controls {
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+          padding: 12px 24px;
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .upload-btn {
+          background: var(--accent);
+          color: #000;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          font-weight: 700;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .upload-btn:hover { background: #00e8bb; transform: translateY(-1px); }
+
+        input[type="file"] { display: none; }
+
+        .search-box {
+          flex: 1;
+          min-width: 200px;
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          color: var(--text);
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+
+        .search-box:focus { border-color: var(--accent); }
+        .search-box::placeholder { color: var(--text-muted); }
+
+        .select-filter {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          color: var(--text);
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          outline: none;
+          cursor: pointer;
+          min-width: 120px;
+        }
+
+        .select-filter:focus { border-color: var(--accent); }
+
+        .date-input {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          color: var(--text);
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          outline: none;
+        }
+
+        .date-input:focus { border-color: var(--accent); }
+
+        .btn-clear {
+          background: transparent;
+          border: 1px solid var(--border);
+          color: var(--text-muted);
+          padding: 8px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          transition: all 0.2s;
+        }
+
+        .btn-clear:hover { border-color: var(--accent2); color: var(--accent2); }
+
+        /* Level filters */
+        .level-filters {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+        }
+
+        .level-btn {
+          padding: 4px 10px;
+          border-radius: 4px;
+          border: 1px solid transparent;
+          cursor: pointer;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 500;
+          transition: all 0.2s;
+          opacity: 0.4;
+        }
+
+        .level-btn.active { opacity: 1; }
+        .level-btn.INFO { background: rgba(96, 165, 250, 0.15); border-color: rgba(96, 165, 250, 0.4); color: var(--info); }
+        .level-btn.WARN { background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.4); color: var(--warn); }
+        .level-btn.ERROR { background: rgba(248, 113, 113, 0.15); border-color: rgba(248, 113, 113, 0.4); color: var(--error); }
+        .level-btn.DEBUG { background: rgba(167, 139, 250, 0.15); border-color: rgba(167, 139, 250, 0.4); color: var(--debug); }
+        .level-btn.UNKNOWN { background: rgba(100, 116, 139, 0.15); border-color: rgba(100, 116, 139, 0.4); color: var(--text-muted); }
+
+        /* Table */
+        .table-container {
+          padding: 0 24px 16px;
+          overflow: auto;
+          max-height: calc(100vh - 180px);
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+          table-layout: fixed;
+        }
+
+        thead {
+          z-index: 10;
+        }
+
+        th {
+          background: var(--surface2);
+          color: var(--text-muted);
+          text-transform: uppercase;
+          font-size: 10px;
+          letter-spacing: 1.5px;
+          padding: 10px 12px;
+          text-align: left;
+          border-bottom: 1px solid var(--border);
+          cursor: pointer;
+          user-select: none;
+          white-space: nowrap;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          box-shadow: 0 1px 0 var(--border);
+        }
+
+        th:hover { color: var(--accent); }
+        th .sort-icon { margin-left: 4px; opacity: 0.4; }
+        th.sorted .sort-icon { opacity: 1; color: var(--accent); }
+
+        tbody tr {
+          border-bottom: 1px solid rgba(42, 45, 53, 0.5);
+          transition: background 0.1s;
+          cursor: pointer;
+        }
+
+        tbody tr:hover { background: var(--surface2); }
+
+        td {
+          padding: 8px 12px;
+          vertical-align: top;
+        }
+
+        .td-time {
+          white-space: nowrap;
+          color: var(--text-muted);
+          font-size: 11px;
+          width: 190px;
+          min-width: 190px;
+          max-width: 190px;
+          overflow: hidden;
+        }
+
+        .td-level {
+          width: 80px;
+          min-width: 80px;
+          max-width: 80px;
+        }
+
+        .td-message {
+          width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--text);
+        }
+
+        .td-message.expanded {
+          white-space: pre-wrap;
+          word-break: break-all;
+        }
+
+        /* Level badges */
+        .level-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+        }
+
+        .level-INFO { background: rgba(96, 165, 250, 0.15); color: var(--info); }
+        .level-WARN { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+        .level-ERROR { background: rgba(248, 113, 113, 0.2); color: var(--error); }
+        .level-DEBUG { background: rgba(167, 139, 250, 0.15); color: var(--debug); }
+        .level-UNKNOWN { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+
+        tr.row-ERROR { background: rgba(248, 113, 113, 0.03); }
+        tr.row-WARN { background: rgba(251, 191, 36, 0.02); }
+
+        /* Empty state */
+        .empty-state {
+          text-align: center;
+          padding: 80px 24px;
+          color: var(--text-muted);
+        }
+
+        .empty-icon {
+          font-size: 48px;
+          margin-bottom: 16px;
+          opacity: 0.3;
+        }
+
+        .empty-title {
+          font-family: 'Syne', sans-serif;
+          font-size: 20px;
+          color: var(--text);
+          margin-bottom: 8px;
+        }
+
+        .empty-desc { font-size: 12px; line-height: 1.6; }
+
+        /* Pagination */
+        .pagination {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 24px;
+          border-top: 1px solid var(--border);
+          background: var(--surface);
+        }
+
+        .page-info { font-size: 12px; color: var(--text-muted); }
+
+        .page-btns { display: flex; gap: 6px; }
+
+        .page-btn {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          color: var(--text);
+          padding: 6px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          transition: all 0.2s;
+        }
+
+        .page-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+
+        .page-size {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: var(--text-muted);
+        }
+
+        /* Highlight */
+        mark {
+          background: rgba(255, 217, 61, 0.3);
+          color: var(--accent3);
+          border-radius: 2px;
+          padding: 0 2px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        .drop-zone {
+          border: 2px dashed var(--border);
+          border-radius: 8px;
+          padding: 40px;
+          text-align: center;
+          color: var(--text-muted);
+          transition: all 0.2s;
+          margin: 24px;
+          font-size: 13px;
+        }
+
+        .drop-zone.dragover {
+          border-color: var(--accent);
+          background: rgba(0, 212, 170, 0.05);
+          color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <div class="logo">ECS<span>.</span>Logs</div>
+        <span class="badge">demo</span>
+    </div>
+    <div class="header-stats">
+        <div class="stat">
+            <div class="stat-value" id="totalCount">0</div>
+            <div class="stat-label">Total</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" style="color: var(--error)" id="errorCount">0</div>
+            <div class="stat-label">Errors</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" style="color: var(--warn)" id="warnCount">0</div>
+            <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="filteredCount">0</div>
+            <div class="stat-label">Filtered</div>
+        </div>
+    </div>
+</div>
+
+<div class="controls">
+    <label class="upload-btn" for="fileInput">
+        📂 Load JSON
+    </label>
+    <input type="file" id="fileInput" accept=".json">
+
+    <input type="text" class="search-box" id="searchInput" placeholder="🔍 Search logs... (supports regex)">
+
+    <input type="datetime-local" class="date-input" id="dateFrom" title="From">
+    <input type="datetime-local" class="date-input" id="dateTo" title="To">
+
+    <div class="level-filters">
+        <button class="level-btn INFO active" onclick="toggleLevel('INFO')">INFO</button>
+        <button class="level-btn WARN active" onclick="toggleLevel('WARN')">WARN</button>
+        <button class="level-btn ERROR active" onclick="toggleLevel('ERROR')">ERROR</button>
+        <button class="level-btn DEBUG active" onclick="toggleLevel('DEBUG')">DEBUG</button>
+        <button class="level-btn UNKNOWN active" onclick="toggleLevel('UNKNOWN')">UNKNOWN</button>
+    </div>
+
+    <button class="btn-clear" onclick="clearFilters()">✕ Clear</button>
+</div>
+
+<div id="mainContent">
+    <div class="drop-zone" id="dropZone">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">Load AWS CloudWatch Logs</div>
+        <p>Click "Load JSON" or drag & drop your JSON log file here</p>
+        <br>
+        <p style="font-size: 11px">Export logs with:<br>
+            <code style="color: var(--accent); text-align: left; display: inline-block; background: var(--surface2); padding: 8px; border-radius: 4px; border: 1px solid var(--border);">aws logs filter-log-events --output json > logs.json</code>
+        </p>
+        <br>
+        <p style="font-size: 11px">Export logs with filter:<br>
+        <pre style="color: var(--accent); text-align: left; display: inline-block; background: var(--surface2); padding: 8px; border-radius: 4px; border: 1px solid var(--border);">
+        aws logs filter-log-events \
+  --log-group-name XXX-prod-log-group-ecs-be \
+  --region eu-central-1 \
+  --start-time $(date -d '24 hours ago' +%s000) \
+  --output json > /tmp/ecs-logs-24h.json</pre>
+        </p>
+    </div>
+</div>
+
+
+<script>
+    let allLogs = [];
+    let filteredLogs = [];
+    let currentPage = 1;
+    let pageSize = 100;
+    let sortCol = 'timestamp';
+    let sortDir = 'desc';
+    let activeLevels = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG', 'UNKNOWN']);
+
+    // File input
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) loadFile(file);
+    });
+
+    // Drag & drop
+    const dropZone = document.getElementById('dropZone');
+    document.body.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    document.body.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    document.body.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) loadFile(file);
+    });
+
+    // Search & filter
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('dateFrom').addEventListener('change', applyFilters);
+    document.getElementById('dateTo').addEventListener('change', applyFilters);
+
+    function loadFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          // Support multiple formats
+          let events = [];
+          if (Array.isArray(data)) {
+            events = data;
+          } else if (data.events) {
+            events = data.events;
+          }
+
+          allLogs = events.map((item, idx) => {
+            const msg = item.message || item.msg || String(item);
+            const level = extractLevel(msg);
+            const ts = item.timestamp ? new Date(item.timestamp) : new Date();
+            return {
+              id: idx,
+              timestamp: ts,
+              timestampStr: ts.toISOString().replace('T', ' ').substring(0, 23),
+              level,
+              message: msg,
+              raw: item
+            };
+          });
+
+          updateStats();
+          applyFilters();
+          renderTable();
+        } catch(err) {
+          alert('Error parsing JSON: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function extractLevel(msg) {
+      if (/\bERROR\b|\[ERROR\]/i.test(msg)) return 'ERROR';
+      if (/\bWARN\b|\[WARN\]/i.test(msg)) return 'WARN';
+      if (/\bDEBUG\b|\[DEBUG\]/i.test(msg)) return 'DEBUG';
+      if (/\bINFO\b|\[INFO\]/i.test(msg)) return 'INFO';
+      return 'UNKNOWN';
+    }
+
+    function updateStats() {
+      document.getElementById('totalCount').textContent = allLogs.length.toLocaleString();
+      document.getElementById('errorCount').textContent = allLogs.filter(l => l.level === 'ERROR').length.toLocaleString();
+      document.getElementById('warnCount').textContent = allLogs.filter(l => l.level === 'WARN').length.toLocaleString();
+    }
+
+    function toggleLevel(level) {
+      if (activeLevels.has(level)) {
+        activeLevels.delete(level);
+      } else {
+        activeLevels.add(level);
+      }
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.classList.toggle('active', activeLevels.has(btn.classList[1]));
+      });
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.trim();
+      const dateFrom = document.getElementById('dateFrom').value ? new Date(document.getElementById('dateFrom').value) : null;
+      const dateTo = document.getElementById('dateTo').value ? new Date(document.getElementById('dateTo').value) : null;
+
+      let regex = null;
+      try { if (search) regex = new RegExp(search, 'gi'); } catch(e) {}
+
+      filteredLogs = allLogs.filter(log => {
+        if (!activeLevels.has(log.level)) return false;
+        if (dateFrom && log.timestamp < dateFrom) return false;
+        if (dateTo && log.timestamp > dateTo) return false;
+        if (search) {
+          if (regex) {
+            regex.lastIndex = 0;
+            return regex.test(log.message);
+          }
+          return log.message.toLowerCase().includes(search.toLowerCase());
+        }
+        return true;
+      });
+
+      // Sort
+      filteredLogs.sort((a, b) => {
+        let va = a[sortCol], vb = b[sortCol];
+        if (va < vb) return sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      currentPage = 1;
+      document.getElementById('filteredCount').textContent = filteredLogs.length.toLocaleString();
+      renderTable();
+    }
+
+    function clearFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value = '';
+      activeLevels = new Set(['INFO', 'WARN', 'ERROR', 'DEBUG', 'UNKNOWN']);
+      document.querySelectorAll('.level-btn').forEach(btn => btn.classList.add('active'));
+      applyFilters();
+    }
+
+    function sortBy(col) {
+      if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = col; sortDir = 'asc'; }
+      applyFilters();
+    }
+
+    function highlight(text, search) {
+      if (!search) return escapeHtml(text);
+      try {
+        const regex = new RegExp(`(${search})`, 'gi');
+        return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+      } catch(e) {
+        return escapeHtml(text);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function renderTable() {
+      const search = document.getElementById('searchInput').value.trim();
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+      const pageData = filteredLogs.slice(start, end);
+      const totalPages = Math.ceil(filteredLogs.length / pageSize);
+
+      const sortIcon = (col) => {
+        if (sortCol !== col) return '<span class="sort-icon">↕</span>';
+        return `<span class="sort-icon">${sortDir === 'asc' ? '↑' : '↓'}</span>`;
+      };
+
+      let html = `
+        <div class="table-container">
+          <table>
+            <colgroup>
+              <col style="width:170px;min-width:170px">
+              <col style="width:80px;min-width:80px">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th onclick="sortBy('timestamp')" class="${sortCol==='timestamp'?'sorted':''}">Timestamp${sortIcon('timestamp')}</th>
+                <th onclick="sortBy('level')" class="${sortCol==='level'?'sorted':''}">Level${sortIcon('level')}</th>
+                <th onclick="sortBy('message')" class="${sortCol==='message'?'sorted':''}">Message${sortIcon('message')}</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      if (pageData.length === 0) {
+        html += `<tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-muted)">No logs match the current filters</td></tr>`;
+      } else {
+        pageData.forEach(log => {
+          html += `
+            <tr class="row-${log.level}" onclick="toggleExpand(this)">
+              <td class="td-time">${log.timestampStr}</td>
+              <td class="td-level"><span class="level-badge level-${log.level}">${log.level}</span></td>
+              <td class="td-message">${highlight(log.message, search)}</td>
+            </tr>
+          `;
+        });
+      }
+
+      html += `</tbody></table></div>`;
+
+      // Pagination
+      const pageBtns = [];
+      const range = 2;
+      for (let i = Math.max(1, currentPage-range); i <= Math.min(totalPages, currentPage+range); i++) {
+        pageBtns.push(`<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`);
+      }
+
+      html += `
+        <div class="pagination">
+          <div class="page-info">Showing ${start+1}–${Math.min(end, filteredLogs.length)} of ${filteredLogs.length.toLocaleString()} logs</div>
+          <div class="page-btns">
+            <button class="page-btn" onclick="goPage(1)" ${currentPage===1?'disabled':''}>«</button>
+            <button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>
+            ${pageBtns.join('')}
+            <button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>
+            <button class="page-btn" onclick="goPage(${totalPages})" ${currentPage===totalPages?'disabled':''}>»</button>
+          </div>
+          <div class="page-size">
+            Rows:
+            <select class="select-filter" onchange="changePageSize(this.value)">
+              <option value="50" ${pageSize===50?'selected':''}>50</option>
+              <option value="100" ${pageSize===100?'selected':''}>100</option>
+              <option value="200" ${pageSize===200?'selected':''}>200</option>
+              <option value="500" ${pageSize===500?'selected':''}>500</option>
+            </select>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('mainContent').innerHTML = html;
+    }
+
+    function toggleExpand(row) {
+      const td = row.querySelector('.td-message');
+      td.classList.toggle('expanded');
+    }
+
+    function goPage(page) {
+      const total = Math.ceil(filteredLogs.length / pageSize);
+      currentPage = Math.max(1, Math.min(page, total));
+      renderTable();
+      window.scrollTo(0, 0);
+    }
+
+    function changePageSize(size) {
+      pageSize = parseInt(size);
+      currentPage = 1;
+      renderTable();
+    }
+</script>
+</body>
+</html>
